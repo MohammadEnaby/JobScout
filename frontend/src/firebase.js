@@ -1,0 +1,1 @@
+﻿// Placeholder: Firebase client setup

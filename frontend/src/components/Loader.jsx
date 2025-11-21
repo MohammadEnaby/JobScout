@@ -1,0 +1,1 @@
+﻿// Placeholder: Loader component
