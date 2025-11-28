@@ -1,0 +1,363 @@
+
+
+NOISE_PHRASES_LIST = [
+    "see translation", "see more", "view insights", "write a comment",
+    "like", "comment", "share", "sponsored", "reply",
+     "عرض الترجمة", "أعجبني", "تعليق", "مشاركة", 
+    "أرسل تعليقك الأول...", "تمت المشاركة مع مجموعة عامة", 
+    "תגובה", "שתף", "אהבתי", "דקות", "تمت ال  مع مجموعة عامة", "أرسل  ك الأول...", "كل التفاعلات"
+]
+
+import os
+import json
+import time
+import random
+import re
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException
+from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+import sys
+
+# Add the parent directory (backend) to sys.path so we can import core.secrets
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+try:
+    from core.secrets import facebook_cookies
+except ImportError as e:
+    print(f"❌ Failed to import secrets: {e}")
+    raise SystemExit(1)
+
+# --- CONFIGURATION ---
+# Replace with the Group ID (found in the URL of the group)
+# Example: https://www.facebook.com/groups/123456789 -> ID is 123456789
+
+GROUP_ID = os.getenv("FB_GROUP_ID", "1942419502675158")
+
+COOKIES_FILE = facebook_cookies
+OUTPUT_FILE = os.path.join(parent_dir, "Data", "jobs.json")
+SEEN_POSTS_FILE = os.path.join(parent_dir, "Data", "last_post_seen.py")
+
+
+def normalize_post_text(text: str) -> str:
+    """Normalize whitespace so comparisons are consistent."""
+    if not text:
+        return ""
+    return " ".join(text.split())
+
+
+def load_seen_posts(group_id: str, path: str = SEEN_POSTS_FILE):
+    """Load the last seen post ID for the given group."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+            local_scope = {}
+            exec(content, {}, local_scope)
+            data = local_scope.get("dict_of_lastSeenPost_for_each_group", {})
+            return data.get(group_id)
+    except (FileNotFoundError, SyntaxError):
+        return None
+
+
+def save_last_seen_post(group_id: str, post_id: str, path: str = SEEN_POSTS_FILE):
+    """Persist the newest post ID for the group."""
+    if not post_id:
+        return
+    
+    data = {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+            local_scope = {}
+            exec(content, {}, local_scope)
+            data = local_scope.get("dict_of_lastSeenPost_for_each_group", {})
+    except (FileNotFoundError, SyntaxError):
+        pass
+    
+    data[group_id] = post_id
+    
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f"dict_of_lastSeenPost_for_each_group = {json.dumps(data, indent=4)}\n")
+
+
+def is_one_day_marker(post_time: str) -> bool:
+    """Returns True if the time label indicates ~1 day old (e.g., '1d', '1 D', '١ د')."""
+    if not post_time:
+        return False
+
+    lowered = post_time.strip().lower()
+    lowered_no_space = lowered.replace(" ", "")
+    lowered_no_space = lowered_no_space.replace("١", "1")  # normalize Arabic numeral
+
+    direct_markers = {
+        "1d",
+        "1day",
+        "1יום",
+        "1يوم",
+    }
+
+    if lowered_no_space in direct_markers:
+        return True
+
+    arabic_variants = {"١د", "١يوم"}
+    if lowered_no_space in arabic_variants:
+        return True
+
+    patterns = [
+        r"^1\s*d$",
+        r"^1\s*day$",
+        r"^1\s*יום$",
+        r"^1\s*يوم$",
+    ]
+
+    for pattern in patterns:
+        if re.match(pattern, lowered):
+            return True
+
+    return False
+
+
+def extract_post_id(post_href: str) -> str:
+    """Extract the numeric post ID from common Facebook href formats."""
+    if not post_href:
+        return ""
+
+    # Direct /posts/{id}/ structure
+    match = re.search(r"/posts/(\d+)", post_href)
+    if match:
+        return match.group(1)
+
+    # story.php?story_fbid=...&id=...
+    match = re.search(r"story_fbid=(\d+)", post_href)
+    if match:
+        return match.group(1)
+
+    # Permalink style ?id=...&story_fbid=...
+    match = re.search(r"id=(\d+)", post_href)
+    if match:
+        return match.group(1)
+
+    return ""
+
+def setup_driver():
+    """Sets up the Chrome Browser to look like a real user."""
+    chrome_options = Options()
+    # chrome_options.add_argument("--headless") # Uncomment this to run without opening a window
+    chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    # Use a standard User Agent so FB thinks we are a normal laptop
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36")
+
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    return driver
+
+def load_cookies(driver, cookies_data):
+    """Injects the saved cookies to bypass login."""
+    try:
+        # If cookies_data is a list, use it directly.
+        # If it's a string (path), load it from file (backward compatibility or if changed back).
+        if isinstance(cookies_data, str):
+            if not os.path.exists(cookies_data):
+                 print("❌ Cookie file not found! Please export cookies first.")
+                 exit()
+            with open(cookies_data, 'r') as file:
+                cookies = json.load(file)
+        else:
+            cookies = cookies_data
+
+        # We must be on the domain before adding cookies
+        driver.get("https://mbasic.facebook.com")
+
+        for cookie in cookies:
+            if "sameSite" in cookie:
+                if cookie["sameSite"] not in ["Strict", "Lax", "None"]:
+                    cookie["sameSite"] = "Lax" # Fix common cookie error
+            try:
+                driver.add_cookie(cookie)
+            except Exception as e:
+                pass # Ignore specific cookie errors
+
+        print("✅ Cookies injected successfully.")
+        driver.refresh() # Refresh to apply login
+    except Exception as e:
+        print(f"❌ Error loading cookies: {e}")
+        exit()
+
+def scrape_group(driver, group_id):
+    """Navigates to group and extracts posts."""
+    url = f"https://mbasic.facebook.com/groups/{group_id}"
+    print(f"🚀 Navigating to: {url}")
+    driver.get(url)
+    time.sleep(random.uniform(3, 5))  # Random sleep to act human
+
+    posts_data = []
+    seen_post_keys = set()
+    max_scrolls = 10  # safety limit so we don't scroll forever
+    scroll_count = 0
+    last_seen_post_id = load_seen_posts(group_id)
+    stop_scraping = False
+    newest_post_id_this_run = None
+
+    if last_seen_post_id:
+        print(f"📖 Last processed post ID: {last_seen_post_id}")
+    else:
+        print("📖 No last post ID found; full scan until 1-day marker.")
+
+    while scroll_count <= max_scrolls and not stop_scraping:
+        # Try to expand "show more" / "عرض المزيد" buttons before extracting
+        try:
+            show_more_buttons = driver.find_elements(
+                By.XPATH,
+                "//div[@role='button' and (contains(., 'عرض المزيد') or contains(., 'See more') or contains(., 'see more'))]"
+            )
+            print(f"🖱 Found {len(show_more_buttons)} 'show more' buttons on this view. Clicking to expand posts...")
+            for btn in show_more_buttons:
+                try:
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(random.uniform(0.5, 1.0))
+                except (ElementClickInterceptedException, StaleElementReferenceException):
+                    continue
+        except Exception as e:
+            print(f"⚠️ Could not click 'show more' buttons: {e}")
+
+        # Parse the page content
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+        # --- EXTRACTION LOGIC (The 'mbasic' structure) ---
+        # In mbasic, posts are usually inside <article> or specific <div> tags
+        potential_posts = soup.find_all('div', role='article')
+
+        if not potential_posts:
+            # Fallback for mbasic structure if 'article' role isn't found
+            potential_posts = soup.select('div[data-ft]')
+
+        print(f"🔍 Found {len(potential_posts)} potential posts on this view. Collected so far: {len(posts_data)}")
+
+        for post in potential_posts:
+            # Prefer the main text span (like the one you showed: <span dir="auto"> ... )
+            main_text_container = post.select_one('span[dir="auto"]') or post
+
+            # Join all text nodes with spaces so every line/part of the post is kept
+            text_content = main_text_container.get_text(separator=" ", strip=True)
+
+            # Clean control characters but keep spaces for readability
+            for ch in ["\n", "\t", "\r", "\f", "\v", "\b", "\a", "\0"]:
+                text_content = text_content.replace(ch, " ")
+
+            for noise_phrase in NOISE_PHRASES_LIST:
+                text_content = text_content.replace(noise_phrase, " ")
+
+            # Try to extract the post time (e.g. '٥٩ د', '1 h', etc.)
+            post_time = None
+            post_href = ""
+            try:
+                time_link = post.find("a", href=lambda h: h and "/posts/" in h)
+                if time_link:
+                    post_time = time_link.get_text(strip=True)
+                    post_href = time_link.get("href") or ""
+            except Exception:
+                post_time = None
+
+            if post_time is not None: 
+                text_content = text_content.replace(post_time, " ")
+
+            normalized_text = normalize_post_text(text_content)
+            post_id = extract_post_id(post_href)
+
+            if not newest_post_id_this_run and post_id:
+                newest_post_id_this_run = post_id
+
+            # Build a strong de-duplication key:
+            # combine the (possibly empty) href with the full cleaned text.
+            post_key = f"{post_href}|{normalized_text}"
+
+            if post_key in seen_post_keys:
+                continue
+
+            # Stop if we reached the last processed post ID
+            if last_seen_post_id and post_id and post_id == last_seen_post_id:
+                print(f"⛔ Reached last processed post ID {last_seen_post_id}. Stopping.")
+                stop_scraping = True
+                break
+
+            # Simple filter: Ignore short posts or system messages
+            if len(normalized_text) > 30:
+                seen_post_keys.add(post_key)
+                
+                # Normalize post_link
+                full_post_link = post_href
+                if post_href and not post_href.startswith("http"):
+                    full_post_link = f"https://www.facebook.com{post_href}"
+
+                job_entry = {
+                    "source_id": group_id,
+                    "raw_text": normalized_text,
+                    "post_time": post_time,
+                    "post_link": full_post_link,
+                    "scraped_at": time.strftime("%Y-%m-%d %H:%M:%S")
+                }
+                posts_data.append(job_entry)
+
+                # Stop once we reach posts that are ~1 day old
+                if is_one_day_marker(post_time):
+                    print(f"⏹ Reached a post with time marker '{post_time}'. Stopping.")
+                    stop_scraping = True
+                    break
+
+        if stop_scraping:
+            break
+
+        scroll_count += 1
+        if scroll_count > max_scrolls:
+            print("⚠️ Reached maximum scroll limit.")
+            break
+
+        print(f"📜 Smooth scrolling down... (scroll {scroll_count}/{max_scrolls})")
+
+        # Perform several small scroll steps instead of one big jump,
+        # to avoid skipping posts that load progressively.
+        small_steps = 3
+        for _ in range(small_steps):
+            driver.execute_script(
+                "window.scrollBy(0, Math.max(window.innerHeight * 0.5, 300));"
+            )
+            time.sleep(random.uniform(0.8, 1.4))
+
+    # Update the last seen post ID for the next run
+    if newest_post_id_this_run:
+        save_last_seen_post(group_id, newest_post_id_this_run)
+
+    return posts_data
+
+def save_data(data):
+    """Saves the scraped data to a JSON file."""
+    try:
+        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        print(f"💾 Saved {len(data)} jobs to {OUTPUT_FILE}")
+    except Exception as e:
+        print(f"❌ Error saving data: {e}")
+
+# --- MAIN EXECUTION ---
+if __name__ == "__main__":
+    driver = setup_driver()
+
+    try:
+        load_cookies(driver, COOKIES_FILE)
+        jobs = scrape_group(driver, GROUP_ID)
+        save_data(jobs)
+
+    except Exception as e:
+        print(f"[X] An error occurred: {e}")
+
+    finally:
+        if 'driver' in locals():
+            print("[~] Closing driver...")
+            driver.quit()

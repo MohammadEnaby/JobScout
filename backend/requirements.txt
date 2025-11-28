@@ -1,1 +1,7 @@
 ﻿# Add backend dependencies here
+firebase-admin
+selenium
+webdriver-manager
+beautifulsoup4
+google-generativeai
+pydantic
