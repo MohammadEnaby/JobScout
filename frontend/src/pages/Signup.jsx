@@ -1,47 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { FaEye, FaEyeSlash, FaCheck, FaTimes } from 'react-icons/fa';
 
 export default function Signup() {
-  const { register, handleSubmit, watch, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, watch } = useForm();
   const { signup, initiateGoogleSignIn } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [logoHover, setLogoHover] = useState(false);
+  const [googleHover, setGoogleHover] = useState(false);
+  const [submitHover, setSubmitHover] = useState(false);
+  const [navHover, setNavHover] = useState(false);
+  const [hoveredInput, setHoveredInput] = useState(null);
   const navigate = useNavigate();
+  const password = watch('password', '');
 
-  const password = watch("password", "");
-  const firstName = watch("firstName", "");
-  const lastName = watch("lastName", "");
-  const phone = watch("phone", "");
-
-  // Password strength checks
-  const hasMinLength = password.length >= 8;
-  const hasUpperCase = /[A-Z]/.test(password);
-  const hasLowerCase = /[a-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-  
-  const passwordStrength = [hasMinLength, hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar].filter(Boolean).length;
+  useEffect(() => {
+    setIsVisible(true);
+  }, []);
 
   const onSubmit = async (data) => {
+    if (data.password !== data.confirmPassword) {
+      return setError('Passwords do not match');
+    }
     try {
       setError('');
       setLoading(true);
-      const fullName = `${data.firstName} ${data.lastName}`;
-      await signup(data.email, data.password, fullName, data.role, data.phone);
+      await signup(data.email, data.password, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        role: data.role
+      });
       navigate('/');
     } catch (err) {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
-        setError('This email is already registered. Please log in instead.');
+        setError('Email already in use.');
       } else if (err.code === 'auth/weak-password') {
-        setError('Password is too weak. Please follow the requirements below.');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Invalid email address.');
+        setError('Password should be at least 6 characters.');
       } else {
         setError('Failed to create account. Please try again.');
       }
@@ -55,7 +55,6 @@ export default function Signup() {
       setError('');
       setLoading(true);
       const result = await initiateGoogleSignIn();
-      
       if (result.isNewUser) {
         navigate('/complete-profile');
       } else {
@@ -69,91 +68,231 @@ export default function Signup() {
     }
   };
 
+  const inputStyle = (fieldName) => {
+    const isHovered = hoveredInput === fieldName;
+    const isFocused = focusedField === fieldName;
+    return {
+      width: '100%',
+      padding: '10px 12px',
+      background: isFocused 
+        ? 'rgba(6, 182, 212, 0.08)' 
+        : isHovered 
+          ? 'rgba(139, 92, 246, 0.04)' 
+          : 'rgba(15, 23, 42, 0.6)',
+      border: `2px solid ${isFocused ? '#06b6d4' : isHovered ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148, 163, 184, 0.2)'}`,
+      borderRadius: '10px',
+      fontSize: '13px',
+      color: '#f1f5f9',
+      outline: 'none',
+      transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      boxShadow: isFocused 
+        ? '0 0 20px rgba(6, 182, 212, 0.25), inset 0 0 15px rgba(6, 182, 212, 0.03)' 
+        : isHovered 
+          ? '0 0 12px rgba(139, 92, 246, 0.15), 0 4px 10px rgba(0, 0, 0, 0.2)' 
+          : 'none',
+      transform: isFocused ? 'scale(1.01) translateY(-1px)' : isHovered ? 'translateY(-1px)' : 'scale(1)',
+      caretColor: '#06b6d4',
+      cursor: 'text'
+    };
+  };
+
+  const labelStyle = (fieldName) => ({
+    display: 'block',
+    fontSize: '11px',
+    fontWeight: '600',
+    color: focusedField === fieldName ? '#06b6d4' : '#94a3b8',
+    marginBottom: '4px',
+    transition: 'all 0.3s ease',
+    transform: focusedField === fieldName ? 'translateX(3px)' : 'translateX(0)'
+  });
+
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '40px 20px'
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+      padding: '12px',
+      overflow: 'hidden',
+      position: 'relative'
     }}>
+      {/* Animated background orbs */}
       <div style={{
-        maxWidth: '600px',
+        position: 'absolute',
+        top: '5%',
+        right: '10%',
+        width: '300px',
+        height: '300px',
+        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(40px)',
+        animation: 'float1 8s ease-in-out infinite'
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '10%',
+        left: '5%',
+        width: '350px',
+        height: '350px',
+        background: 'radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(40px)',
+        animation: 'float2 10s ease-in-out infinite'
+      }} />
+      <div style={{
+        position: 'absolute',
+        top: '40%',
+        left: '30%',
+        width: '180px',
+        height: '180px',
+        background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, transparent 70%)',
+        borderRadius: '50%',
+        filter: 'blur(30px)',
+        animation: 'float3 6s ease-in-out infinite'
+      }} />
+
+      <div style={{
+        maxWidth: '620px',
         width: '100%',
-        background: 'white',
-        padding: '48px 40px',
-        borderRadius: '16px',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        background: 'rgba(30, 41, 59, 0.85)',
+        backdropFilter: 'blur(20px)',
+        padding: '18px 26px 16px 26px',
+        borderRadius: '22px',
+        border: '1px solid rgba(148, 163, 184, 0.1)',
+        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.5)',
+        position: 'relative',
+        zIndex: 1,
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.95)',
+        transition: 'all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '80px',
-            height: '80px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 20px',
-            fontSize: '36px',
-            color: 'white',
-            fontWeight: 'bold'
-          }}>
+
+        {/* Navigation to Login - Creative animated button */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+          <Link 
+            to="/login"
+            onMouseEnter={() => setNavHover(true)}
+            onMouseLeave={() => setNavHover(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 18px',
+              background: navHover ? 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)' : 'rgba(139, 92, 246, 0.1)',
+              border: `2px solid ${navHover ? 'transparent' : 'rgba(139, 92, 246, 0.3)'}`,
+              borderRadius: '30px',
+              color: navHover ? 'white' : '#8b5cf6',
+              textDecoration: 'none',
+              fontSize: '12px',
+              fontWeight: '700',
+              transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              transform: navHover ? 'scale(1.08) translateX(-5px)' : 'scale(1)',
+              boxShadow: navHover ? '0 10px 30px rgba(139, 92, 246, 0.4)' : 'none'
+            }}
+          >
+            <span style={{ 
+              transition: 'transform 0.3s ease',
+              transform: navHover ? 'translateX(-5px)' : 'translateX(0)'
+            }}>←</span>
+            <span>Sign In</span>
+            <span style={{ 
+              fontSize: '14px',
+              transition: 'transform 0.3s ease',
+              transform: navHover ? 'rotate(-20deg) scale(1.2)' : 'rotate(0)'
+            }}>👋</span>
+          </Link>
+        </div>
+
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <div 
+            onMouseEnter={() => setLogoHover(true)}
+            onMouseLeave={() => setLogoHover(false)}
+            style={{
+              width: '52px',
+              height: '52px',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
+              borderRadius: '15px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 10px',
+              fontSize: '24px',
+              color: 'white',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              transform: logoHover ? 'scale(1.15) rotate(-5deg)' : 'scale(1)',
+              boxShadow: logoHover 
+                ? '0 15px 40px rgba(139, 92, 246, 0.5), 0 0 60px rgba(6, 182, 212, 0.3)' 
+                : '0 8px 25px rgba(139, 92, 246, 0.3)',
+              animation: 'pulse 3s ease-in-out infinite'
+            }}>
             JS
           </div>
-          <h2 style={{
-            fontSize: '28px',
-            fontWeight: '700',
-            color: '#1a202c',
-            marginBottom: '8px'
+          <h1 style={{
+            fontSize: '21px',
+            fontWeight: '800',
+            background: 'linear-gradient(135deg, #f1f5f9 0%, #8b5cf6 50%, #06b6d4 100%)',
+            backgroundSize: '200% 200%',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            marginBottom: '3px',
+            animation: 'gradient 4s ease infinite'
           }}>
             Create Account
-          </h2>
-          <p style={{ fontSize: '14px', color: '#718096' }}>
+          </h1>
+          <p style={{ fontSize: '12px', color: '#64748b' }}>
             Join JobScout and start your journey
           </p>
         </div>
 
         {error && (
           <div style={{
-            background: '#fee',
-            border: '1px solid #fcc',
-            color: '#c33',
-            padding: '12px 16px',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#f87171',
+            padding: '8px 12px',
             borderRadius: '8px',
-            marginBottom: '20px',
-            fontSize: '14px'
+            marginBottom: '10px',
+            fontSize: '11px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            animation: 'shake 0.5s ease-out'
           }}>
-            {error}
+            <span>⚠️</span> {error}
           </div>
         )}
 
+        {/* Google Sign In */}
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
+          onMouseEnter={() => setGoogleHover(true)}
+          onMouseLeave={() => setGoogleHover(false)}
           type="button"
           style={{
             width: '100%',
-            padding: '12px',
-            background: 'white',
-            color: '#444',
-            border: '2px solid #ddd',
-            borderRadius: '8px',
-            fontSize: '15px',
+            padding: '10px',
+            background: googleHover ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+            border: `2px solid ${googleHover ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148, 163, 184, 0.2)'}`,
+            borderRadius: '10px',
+            fontSize: '13px',
             fontWeight: '600',
+            color: '#e2e8f0',
             cursor: loading ? 'not-allowed' : 'pointer',
-            marginBottom: '24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '10px',
-            transition: 'all 0.2s'
+            transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            transform: googleHover ? 'scale(1.02) translateY(-2px)' : 'scale(1)',
+            boxShadow: googleHover ? '0 10px 30px rgba(0, 0, 0, 0.3)' : 'none'
           }}
-          onMouseOver={(e) => !loading && (e.target.style.background = '#f9f9f9')}
-          onMouseOut={(e) => !loading && (e.target.style.background = 'white')}
         >
-          <svg width="20" height="20" viewBox="0 0 20 20">
+          <svg width="16" height="16" viewBox="0 0 20 20" style={{ transition: 'transform 0.4s', transform: googleHover ? 'rotate(360deg)' : 'rotate(0)' }}>
             <path fill="#4285F4" d="M19.6 10.23c0-.82-.1-1.42-.25-2.05H10v3.72h5.5c-.15.96-.74 2.31-2.04 3.22v2.45h3.16c1.89-1.73 2.98-4.3 2.98-7.34z"/>
             <path fill="#34A853" d="M13.46 15.13c-.83.59-1.96 1-3.46 1-2.64 0-4.88-1.74-5.68-4.15H1.07v2.52C2.72 17.75 6.09 20 10 20c2.7 0 4.96-.89 6.62-2.42l-3.16-2.45z"/>
             <path fill="#FBBC05" d="M3.99 10c0-.69.12-1.35.32-1.97V5.51H1.07A9.973 9.973 0 000 10c0 1.61.39 3.14 1.07 4.49l3.24-2.52c-.2-.62-.32-1.28-.32-1.97z"/>
@@ -162,475 +301,148 @@ export default function Signup() {
           Continue with Google
         </button>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          margin: '24px 0',
-          gap: '12px'
-        }}>
-          <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
-          <span style={{ color: '#718096', fontSize: '14px', fontWeight: '500' }}>OR</span>
-          <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
+        {/* Animated Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', margin: '12px 0', gap: '14px' }}>
+          <div style={{ flex: 1, height: '2px', background: 'linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.3), transparent)', animation: 'shimmer 2s infinite' }} />
+          <span style={{ color: '#64748b', fontSize: '10px', fontWeight: '600', padding: '3px 10px', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '20px' }}>or</span>
+          <div style={{ flex: 1, height: '2px', background: 'linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.3), transparent)', animation: 'shimmer 2s infinite reverse' }} />
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Name Fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+          {/* Name Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
             <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '600',
-                color: '#2d3748',
-                marginBottom: '8px'
-              }}>
-                First Name <span style={{ color: '#e53e3e' }}>*</span>
-              </label>
-              <input
-                {...register("firstName", { 
-                  required: "First name is required",
-                  minLength: {
-                    value: 2,
-                    message: "Must be at least 2 characters"
-                  }
-                })}
-                type="text"
-                placeholder="John"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-              />
-              {errors.firstName && (
-                <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                  {errors.firstName.message}
-                </p>
-              )}
+              <label style={labelStyle('firstName')}>👤 First Name</label>
+              <input {...register("firstName", { required: "Required" })} type="text" placeholder="John" style={inputStyle('firstName')} onFocus={() => setFocusedField('firstName')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('firstName')} onMouseLeave={() => setHoveredInput(null)} />
+              {errors.firstName && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.firstName.message}</p>}
             </div>
-
             <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '600',
-                color: '#2d3748',
-                marginBottom: '8px'
-              }}>
-                Last Name <span style={{ color: '#e53e3e' }}>*</span>
-              </label>
-              <input
-                {...register("lastName", { 
-                  required: "Last name is required",
-                  minLength: {
-                    value: 2,
-                    message: "Must be at least 2 characters"
-                  }
-                })}
-                type="text"
-                placeholder="Doe"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-              />
-              {errors.lastName && (
-                <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                  {errors.lastName.message}
-                </p>
-              )}
+              <label style={labelStyle('lastName')}>👤 Last Name</label>
+              <input {...register("lastName", { required: "Required" })} type="text" placeholder="Doe" style={inputStyle('lastName')} onFocus={() => setFocusedField('lastName')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('lastName')} onMouseLeave={() => setHoveredInput(null)} />
+              {errors.lastName && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.lastName.message}</p>}
             </div>
           </div>
 
-          {/* Email */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#2d3748',
-              marginBottom: '8px'
-            }}>
-              Email Address <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <input
-              {...register("email", { 
-                required: "Email is required",
-                pattern: {
-                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: "Invalid email address"
-                }
-              })}
-              type="email"
-              placeholder="john.doe@example.com"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                border: '2px solid #e2e8f0',
-                borderRadius: '8px',
-                fontSize: '15px',
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={(e) => e.target.style.borderColor = '#667eea'}
-              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-            />
-            {errors.email && (
-              <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                {errors.email.message}
-              </p>
-            )}
-          </div>
-
-          {/* Phone Number */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#2d3748',
-              marginBottom: '8px'
-            }}>
-              Phone Number <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <input
-              {...register("phone", { 
-                required: "Phone number is required",
-                pattern: {
-                  value: /^[0-9+\-\s()]+$/,
-                  message: "Invalid phone number"
-                },
-                minLength: {
-                  value: 9,
-                  message: "Phone number must be at least 9 digits"
-                }
-              })}
-              type="tel"
-              placeholder="+1 (555) 123-4567"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                border: '2px solid #e2e8f0',
-                borderRadius: '8px',
-                fontSize: '15px',
-                outline: 'none',
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={(e) => e.target.style.borderColor = '#667eea'}
-              onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-            />
-            {errors.phone && (
-              <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                {errors.phone.message}
-              </p>
-            )}
+          {/* Email & Phone Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <div>
+              <label style={labelStyle('email')}>✉️ Email</label>
+              <input {...register("email", { required: "Required", pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: "Invalid" } })} type="email" placeholder="you@example.com" style={inputStyle('email')} onFocus={() => setFocusedField('email')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('email')} onMouseLeave={() => setHoveredInput(null)} />
+              {errors.email && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.email.message}</p>}
+            </div>
+            <div>
+              <label style={labelStyle('phone')}>📱 Phone</label>
+              <input {...register("phone", { required: "Required" })} type="tel" placeholder="+1 234 567 890" style={inputStyle('phone')} onFocus={() => setFocusedField('phone')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('phone')} onMouseLeave={() => setHoveredInput(null)} />
+              {errors.phone && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.phone.message}</p>}
+            </div>
           </div>
 
           {/* Account Type */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#2d3748',
-              marginBottom: '8px'
-            }}>
-              Account Type <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <label style={{
-                flex: 1,
-                padding: '12px',
-                border: '2px solid #e2e8f0',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.borderColor = '#667eea'}
-              onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}>
-                <input
-                  {...register("role", { required: "Please select an account type" })}
-                  type="radio"
-                  value="user"
-                  defaultChecked
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '14px', color: '#2d3748' }}>User</div>
-                  <div style={{ fontSize: '12px', color: '#718096' }}>Browse & apply for jobs</div>
-                </div>
-              </label>
-
-              <label style={{
-                flex: 1,
-                padding: '12px',
-                border: '2px solid #e2e8f0',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.borderColor = '#667eea'}
-              onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}>
-                <input
-                  {...register("role")}
-                  type="radio"
-                  value="admin"
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '14px', color: '#2d3748' }}>Admin</div>
-                  <div style={{ fontSize: '12px', color: '#718096' }}>Manage the platform</div>
-                </div>
-              </label>
-            </div>
-            {errors.role && (
-              <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                {errors.role.message}
-              </p>
-            )}
-          </div>
-
-          {/* Password */}
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#2d3748',
-              marginBottom: '8px'
-            }}>
-              Password <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                {...register("password", { 
-                  required: "Password is required",
-                  minLength: {
-                    value: 8,
-                    message: "Password must be at least 8 characters"
-                  },
-                  validate: {
-                    hasUpperCase: v => /[A-Z]/.test(v) || "Must contain uppercase letter",
-                    hasLowerCase: v => /[a-z]/.test(v) || "Must contain lowercase letter",
-                    hasNumber: v => /[0-9]/.test(v) || "Must contain a number",
-                    hasSpecialChar: v => /[!@#$%^&*(),.?":{}|<>]/.test(v) || "Must contain special character"
-                  }
-                })}
-                type={showPassword ? "text" : "password"}
-                placeholder="Create a strong password"
-                style={{
-                  width: '100%',
-                  padding: '12px 45px 12px 16px',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: '#94a3b8', marginBottom: '5px' }}>⚡ Account Type</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {['user', 'admin'].map((type) => (
+                <label key={type} style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '2px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '10px',
                   cursor: 'pointer',
-                  color: '#718096',
-                  fontSize: '18px',
-                  padding: '8px'
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                 }}
-              >
-                {showPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = type === 'user' ? '#06b6d4' : '#8b5cf6'; e.currentTarget.style.transform = 'scale(1.02) translateY(-2px)'; e.currentTarget.style.boxShadow = `0 8px 20px ${type === 'user' ? 'rgba(6, 182, 212, 0.2)' : 'rgba(139, 92, 246, 0.2)'}` }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none' }}
+                >
+                  <input type="radio" value={type} {...register("role", { required: true })} defaultChecked={type === 'user'} style={{ display: 'none' }} />
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    border: `2px solid ${type === 'user' ? '#06b6d4' : '#8b5cf6'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: type === 'user' ? '#06b6d4' : '#8b5cf6',
+                      transition: 'transform 0.3s ease'
+                    }} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: '600', fontSize: '12px', color: '#e2e8f0' }}>{type === 'user' ? '👤 User' : '⚙️ Admin'}</div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>{type === 'user' ? 'Browse & apply' : 'Manage platform'}</div>
+                  </div>
+                </label>
+              ))}
             </div>
-            {errors.password && (
-              <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                {errors.password.message}
-              </p>
-            )}
           </div>
 
-          {/* Password Strength Indicator */}
-          {password && (
-            <div style={{
-              marginBottom: '20px',
-              padding: '16px',
-              background: '#f7fafc',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0'
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '12px'
-              }}>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#2d3748' }}>
-                  Password Strength
-                </span>
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: passwordStrength >= 4 ? '#10b981' : passwordStrength >= 3 ? '#f59e0b' : '#ef4444'
-                }}>
-                  {passwordStrength >= 4 ? 'Strong' : passwordStrength >= 3 ? 'Medium' : 'Weak'}
-                </span>
-              </div>
-              <div style={{
-                display: 'grid',
-                gap: '8px',
-                fontSize: '13px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {hasMinLength ? <FaCheck style={{ color: '#10b981' }} /> : <FaTimes style={{ color: '#ef4444' }} />}
-                  <span style={{ color: hasMinLength ? '#10b981' : '#6b7280' }}>At least 8 characters</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {hasUpperCase ? <FaCheck style={{ color: '#10b981' }} /> : <FaTimes style={{ color: '#ef4444' }} />}
-                  <span style={{ color: hasUpperCase ? '#10b981' : '#6b7280' }}>One uppercase letter (A-Z)</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {hasLowerCase ? <FaCheck style={{ color: '#10b981' }} /> : <FaTimes style={{ color: '#ef4444' }} />}
-                  <span style={{ color: hasLowerCase ? '#10b981' : '#6b7280' }}>One lowercase letter (a-z)</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {hasNumber ? <FaCheck style={{ color: '#10b981' }} /> : <FaTimes style={{ color: '#ef4444' }} />}
-                  <span style={{ color: hasNumber ? '#10b981' : '#6b7280' }}>One number (0-9)</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {hasSpecialChar ? <FaCheck style={{ color: '#10b981' }} /> : <FaTimes style={{ color: '#ef4444' }} />}
-                  <span style={{ color: hasSpecialChar ? '#10b981' : '#6b7280' }}>One special character (!@#$%...)</span>
-                </div>
-              </div>
+          {/* Password Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+            <div>
+              <label style={labelStyle('password')}>🔒 Password</label>
+              <input {...register("password", { required: "Required", minLength: { value: 6, message: "Min 6 chars" } })} type="password" placeholder="••••••••" style={inputStyle('password')} onFocus={() => setFocusedField('password')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('password')} onMouseLeave={() => setHoveredInput(null)} />
+              {errors.password && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.password.message}</p>}
             </div>
-          )}
-
-          {/* Confirm Password */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#2d3748',
-              marginBottom: '8px'
-            }}>
-              Confirm Password <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                {...register("confirmPassword", { 
-                  required: "Please confirm your password",
-                  validate: value => value === password || "Passwords do not match"
-                })}
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="Re-enter your password"
-                style={{
-                  width: '100%',
-                  padding: '12px 45px 12px 16px',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#667eea'}
-                onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#718096',
-                  fontSize: '18px',
-                  padding: '8px'
-                }}
-              >
-                {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
+            <div>
+              <label style={labelStyle('confirmPassword')}>🔒 Confirm</label>
+              <input {...register("confirmPassword", { required: "Required", validate: value => value === password || "Mismatch" })} type="password" placeholder="••••••••" style={inputStyle('confirmPassword')} onFocus={() => setFocusedField('confirmPassword')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('confirmPassword')} onMouseLeave={() => setHoveredInput(null)} />
+              {errors.confirmPassword && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.confirmPassword.message}</p>}
             </div>
-            {errors.confirmPassword && (
-              <p style={{ color: '#e53e3e', fontSize: '13px', marginTop: '6px' }}>
-                {errors.confirmPassword.message}
-              </p>
-            )}
           </div>
 
+          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
+            onMouseEnter={() => setSubmitHover(true)}
+            onMouseLeave={() => setSubmitHover(false)}
             style={{
               width: '100%',
-              padding: '14px',
-              background: loading ? '#a0aec0' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              padding: '12px',
+              background: loading ? '#475569' : 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)',
+              backgroundSize: '200% 200%',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: '600',
+              borderRadius: '12px',
+              fontSize: '14px',
+              fontWeight: '700',
               cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+              transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              transform: submitHover && !loading ? 'scale(1.02) translateY(-3px)' : 'scale(1)',
+              boxShadow: submitHover && !loading 
+                ? '0 20px 40px rgba(139, 92, 246, 0.4), 0 0 60px rgba(6, 182, 212, 0.2)' 
+                : '0 8px 25px rgba(139, 92, 246, 0.3)',
+              animation: !loading ? 'gradient 3s ease infinite' : 'none',
+              position: 'relative',
+              overflow: 'hidden'
             }}
-            onMouseOver={(e) => !loading && (e.target.style.transform = 'translateY(-2px)')}
-            onMouseOut={(e) => !loading && (e.target.style.transform = 'translateY(0)')}
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
+            <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              {loading ? 'Creating...' : 'Create Account'}
+              {!loading && <span style={{ transition: 'transform 0.3s', transform: submitHover ? 'scale(1.3) rotate(20deg)' : 'scale(1)' }}>🚀</span>}
+            </span>
           </button>
         </form>
-
-        <div style={{
-          marginTop: '24px',
-          textAlign: 'center',
-          fontSize: '14px',
-          color: '#718096'
-        }}>
-          Already have an account?{' '}
-          <Link 
-            to="/login" 
-            style={{
-              color: '#667eea',
-              fontWeight: '600',
-              textDecoration: 'none'
-            }}
-            onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
-            onMouseOut={(e) => e.target.style.textDecoration = 'none'}
-          >
-            Sign In
-          </Link>
-        </div>
       </div>
+
+      <style>{`
+        @keyframes float1 { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 33% { transform: translate(-30px, 30px) rotate(-5deg); } 66% { transform: translate(20px, -20px) rotate(5deg); } }
+        @keyframes float2 { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 33% { transform: translate(40px, -30px) rotate(5deg); } 66% { transform: translate(-30px, 40px) rotate(-5deg); } }
+        @keyframes float3 { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.3); opacity: 0.8; } }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3); } 50% { box-shadow: 0 12px 35px rgba(139, 92, 246, 0.5), 0 0 50px rgba(6, 182, 212, 0.2); } }
+        @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+        @keyframes shimmer { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 }
