@@ -15,6 +15,8 @@ export default function Signup() {
   const [submitHover, setSubmitHover] = useState(false);
   const [navHover, setNavHover] = useState(false);
   const [hoveredInput, setHoveredInput] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const password = watch('password', '');
 
@@ -388,12 +390,82 @@ export default function Signup() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
             <div>
               <label style={labelStyle('password')}>🔒 Password</label>
-              <input {...register("password", { required: "Required", minLength: { value: 6, message: "Min 6 chars" } })} type="password" placeholder="••••••••" style={inputStyle('password')} onFocus={() => setFocusedField('password')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('password')} onMouseLeave={() => setHoveredInput(null)} />
+              <div style={{ position: 'relative' }}>
+                <input {...register("password", { required: "Required", minLength: { value: 6, message: "Min 6 chars" } })} type={showPassword ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle('password'), paddingRight: '38px' }} onFocus={() => setFocusedField('password')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('password')} onMouseLeave={() => setHoveredInput(null)} />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: showPassword ? '#8b5cf6' : '#64748b',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#8b5cf6'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.2)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = showPassword ? '#8b5cf6' : '#64748b'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                >
+                  {showPassword ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
               {errors.password && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.password.message}</p>}
             </div>
             <div>
               <label style={labelStyle('confirmPassword')}>🔒 Confirm</label>
-              <input {...register("confirmPassword", { required: "Required", validate: value => value === password || "Mismatch" })} type="password" placeholder="••••••••" style={inputStyle('confirmPassword')} onFocus={() => setFocusedField('confirmPassword')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('confirmPassword')} onMouseLeave={() => setHoveredInput(null)} />
+              <div style={{ position: 'relative' }}>
+                <input {...register("confirmPassword", { required: "Required", validate: value => value === password || "Mismatch" })} type={showConfirmPassword ? "text" : "password"} placeholder="••••••••" style={{ ...inputStyle('confirmPassword'), paddingRight: '38px' }} onFocus={() => setFocusedField('confirmPassword')} onBlur={() => setFocusedField(null)} onMouseEnter={() => setHoveredInput('confirmPassword')} onMouseLeave={() => setHoveredInput(null)} />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: showConfirmPassword ? '#8b5cf6' : '#64748b',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#8b5cf6'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.2)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = showConfirmPassword ? '#8b5cf6' : '#64748b'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                >
+                  {showConfirmPassword ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
               {errors.confirmPassword && <p style={{ color: '#f87171', fontSize: '10px', marginTop: '3px', animation: 'fadeIn 0.3s' }}>{errors.confirmPassword.message}</p>}
             </div>
           </div>
