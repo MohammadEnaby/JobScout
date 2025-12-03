@@ -1,5 +1,4 @@
 
-
 NOISE_PHRASES_LIST = [
     "see translation", "see more", "view insights", "write a comment",
     "like", "comment", "share", "sponsored", "reply",
@@ -31,7 +30,7 @@ if parent_dir not in sys.path:
 try:
     from core.secrets import facebook_cookies
 except ImportError as e:
-    print(f"❌ Failed to import secrets: {e}")
+    print(f"[!] Failed to import secrets: {e}")
     raise SystemExit(1)
 
 # --- CONFIGURATION ---
@@ -165,7 +164,7 @@ def load_cookies(driver, cookies_data):
         # If it's a string (path), load it from file (backward compatibility or if changed back).
         if isinstance(cookies_data, str):
             if not os.path.exists(cookies_data):
-                 print("❌ Cookie file not found! Please export cookies first.")
+                 print("[!] Cookie file not found! Please export cookies first.")
                  exit()
             with open(cookies_data, 'r') as file:
                 cookies = json.load(file)
@@ -179,21 +178,27 @@ def load_cookies(driver, cookies_data):
             if "sameSite" in cookie:
                 if cookie["sameSite"] not in ["Strict", "Lax", "None"]:
                     cookie["sameSite"] = "Lax" # Fix common cookie error
+            
+            # Map expirationDate to expiry if needed
+            if "expirationDate" in cookie and "expiry" not in cookie:
+                cookie["expiry"] = int(cookie["expirationDate"])
+                del cookie["expirationDate"]
+
             try:
                 driver.add_cookie(cookie)
             except Exception as e:
-                pass # Ignore specific cookie errors
+                print(f"[!] Warning: Failed to add cookie {cookie.get('name')}: {e}")
 
-        print("✅ Cookies injected successfully.")
+        print("[+] Cookies injected successfully.")
         driver.refresh() # Refresh to apply login
     except Exception as e:
-        print(f"❌ Error loading cookies: {e}")
+        print(f"[!] Error loading cookies: {e}")
         exit()
 
 def scrape_group(driver, group_id):
     """Navigates to group and extracts posts."""
     url = f"https://mbasic.facebook.com/groups/{group_id}"
-    print(f"🚀 Navigating to: {url}")
+    print(f"[*] Navigating to: {url}")
     driver.get(url)
     time.sleep(random.uniform(3, 5))  # Random sleep to act human
 
@@ -206,9 +211,9 @@ def scrape_group(driver, group_id):
     newest_post_id_this_run = None
 
     if last_seen_post_id:
-        print(f"📖 Last processed post ID: {last_seen_post_id}")
+        print(f"[*] Last processed post ID: {last_seen_post_id}")
     else:
-        print("📖 No last post ID found; full scan until 1-day marker.")
+        print("[*] No last post ID found; full scan until 1-day marker.")
 
     while scroll_count <= max_scrolls and not stop_scraping:
         # Try to expand "show more" / "عرض المزيد" buttons before extracting
@@ -217,7 +222,7 @@ def scrape_group(driver, group_id):
                 By.XPATH,
                 "//div[@role='button' and (contains(., 'عرض المزيد') or contains(., 'See more') or contains(., 'see more'))]"
             )
-            print(f"🖱 Found {len(show_more_buttons)} 'show more' buttons on this view. Clicking to expand posts...")
+            print(f"[*] Found {len(show_more_buttons)} 'show more' buttons on this view. Clicking to expand posts...")
             for btn in show_more_buttons:
                 try:
                     driver.execute_script("arguments[0].click();", btn)
@@ -225,7 +230,7 @@ def scrape_group(driver, group_id):
                 except (ElementClickInterceptedException, StaleElementReferenceException):
                     continue
         except Exception as e:
-            print(f"⚠️ Could not click 'show more' buttons: {e}")
+            print(f"[!] Could not click 'show more' buttons: {e}")
 
         # Parse the page content
         soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -238,7 +243,7 @@ def scrape_group(driver, group_id):
             # Fallback for mbasic structure if 'article' role isn't found
             potential_posts = soup.select('div[data-ft]')
 
-        print(f"🔍 Found {len(potential_posts)} potential posts on this view. Collected so far: {len(posts_data)}")
+        print(f"[*] Found {len(potential_posts)} potential posts on this view. Collected so far: {len(posts_data)}")
 
         for post in potential_posts:
             # Prefer the main text span (like the one you showed: <span dir="auto"> ... )
@@ -283,7 +288,7 @@ def scrape_group(driver, group_id):
 
             # Stop if we reached the last processed post ID
             if last_seen_post_id and post_id and post_id == last_seen_post_id:
-                print(f"⛔ Reached last processed post ID {last_seen_post_id}. Stopping.")
+                print(f"[*] Reached last processed post ID {last_seen_post_id}. Stopping.")
                 stop_scraping = True
                 break
 
@@ -307,7 +312,7 @@ def scrape_group(driver, group_id):
 
                 # Stop once we reach posts that are ~1 day old
                 if is_one_day_marker(post_time):
-                    print(f"⏹ Reached a post with time marker '{post_time}'. Stopping.")
+                    print(f"[*] Reached a post with time marker '{post_time}'. Stopping.")
                     stop_scraping = True
                     break
 
@@ -316,10 +321,10 @@ def scrape_group(driver, group_id):
 
         scroll_count += 1
         if scroll_count > max_scrolls:
-            print("⚠️ Reached maximum scroll limit.")
+            print("[!] Reached maximum scroll limit.")
             break
 
-        print(f"📜 Smooth scrolling down... (scroll {scroll_count}/{max_scrolls})")
+        print(f"[*] Smooth scrolling down... (scroll {scroll_count}/{max_scrolls})")
 
         # Perform several small scroll steps instead of one big jump,
         # to avoid skipping posts that load progressively.
@@ -331,31 +336,13 @@ def scrape_group(driver, group_id):
             time.sleep(random.uniform(0.8, 1.4))
 
     # Update the last seen post ID for the next run
-    if newest_post_id_this_run:
-        save_last_seen_post(group_id, newest_post_id_this_run)
-
-    return posts_data
-
-def save_data(data):
-    """Saves the scraped data to a JSON file."""
-    try:
-        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"💾 Saved {len(data)} jobs to {OUTPUT_FILE}")
-    except Exception as e:
-        print(f"❌ Error saving data: {e}")
-
-# --- MAIN EXECUTION ---
-if __name__ == "__main__":
-    driver = setup_driver()
-
     try:
         load_cookies(driver, COOKIES_FILE)
         jobs = scrape_group(driver, GROUP_ID)
         save_data(jobs)
 
     except Exception as e:
-        print(f"[X] An error occurred: {e}")
+        print(f"[!] An error occurred: {e}")
 
     finally:
         if 'driver' in locals():
